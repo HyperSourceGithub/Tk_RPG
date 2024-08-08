@@ -186,7 +186,7 @@ save_button.grid(column=0, row=8, pady=5, sticky=(W))
 load_button = ttk.Button(frm, text="Load Game", command=load_game)
 load_button.grid(column=6, row=8, pady=5, sticky=(E))
 
-quit_button = ttk.Button(frm, text="Quit", command=root.destroy)
+quit_button = ttk.Button(frm, text="⚙️ Quit", command=root.destroy)
 quit_button.grid(column=0, row=8, pady=5, columnspan=10)
 
 # ===============================================================================
