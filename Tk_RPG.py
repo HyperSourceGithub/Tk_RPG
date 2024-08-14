@@ -1,6 +1,8 @@
 from tkinter import *
+from tkinter import messagebox
 from tkinter import ttk
 import random
+import os
 
 # vareeabulls
 money = 500
@@ -20,6 +22,7 @@ title_messages = ["The RPG of the century!",
 
 
 inventory_window = None
+settings_window = None
 status = None
 
 # ===============================================================================
@@ -57,6 +60,38 @@ if True:
             item_label.grid(row=index + 1, column=0, sticky="w")
             scrap_button = Button(inventory_window, text="Scrap", command=lambda i=index: scrap_item(i))
             scrap_button.grid(row=index + 1, column=1)
+       
+    def exit_game():
+        cancel = messagebox.showinfo(title="Quitting...", message="Quitting game...", type="okcancel")
+        if cancel == "ok":
+            root.destroy()
+            exit()
+        else:
+            pass   
+            
+    def show_settings():
+        global settings_window
+
+        if settings_window is None or not settings_window.winfo_exists():
+            settings_window = Toplevel(root)
+            settings_window.title("Settings")
+            settings_window.geometry("400x300")
+            settings_window.transient(root)  # Make the new window a transient of the root window
+            settings_window.grab_set()  # Grab all events for the new window
+
+        lbl = Label(settings_window, text="⚙️ Settings:")
+        lbl.grid(row=0, column=0, columnspan=6, pady=10)
+        
+        save_button = ttk.Button(settings_window, text="Save Game", command=save_game)
+        save_button.grid(column=0, row=1, pady=5, columnspan=6)
+
+        load_button = ttk.Button(settings_window, text="Load Game", command=load_game)
+        load_button.grid(column=0, row=2, pady=5, columnspan=6)
+
+        quit_button = ttk.Button(settings_window, text="Quit", command=exit_game)
+        quit_button.grid(column=0, row=3, pady=5, columnspan=6)
+        
+        update_grid(settings_window)
 
     def scrap_item(index):
         global money
@@ -66,31 +101,52 @@ if True:
         show_inventory()  # Refresh inventory window
 
     def save_game():
-        with open("saves.txt", "w") as file:
-            file.write(f"{money}\n")
-            for item in inventory:
-                file.write(f"{item}\n")
+        try:
+            with open("saves.txt", "w") as file:
+                file.write(f"{money}\n")
+                file.write(f"{health}\n")
+                for item in inventory:
+                    file.write(f"{item}\n")
+        except FileNotFoundError:
+            print("Creating new save file...")
+            with open("saves.txt", "x"):
+                file.write(f"{money}\n")
+                file.write(f"{health}\n")
+                for item in inventory:
+                    file.write(f"{item}\n")
+        messagebox.showinfo(title="Saved!", message="Saved game.", type='ok')
+                
 
     def load_game():
         global money, inventory, health
         try:
-            with open("saves.txt", "r") as file:
-                lines = file.readlines()
-                money = int(lines[0].strip())
-                health = int(lines[1].strip())
-                inventory = [line.strip() for line in lines[2:]]
-            money_label.config(text=f"Money: ${money}")
-            health_label.config(text=f"Health: {health} HP")
-        except FileNotFoundError:
-            print("Save file not found. Starting with default values.")
-        except Exception:
-            print("No save data found. Continuing as regular and resetting data...")
+            isEmpty = os.stat("saves.txt").st_size == 0
+            if isEmpty:
+                messagebox.showinfo(title="Load failed", message=f"An exception occured: [saves.txt] is empty.  Continuing with default values.", type="ok")
+            else:     
+                try:
+                    with open("saves.txt", "r") as file:
+                        lines = file.readlines()
+                        money = int(lines[0].strip())
+                        health = int(lines[1].strip())
+                        inventory = [line.strip() for line in lines[2:]]
+                    money_label.config(text=f"Money: ${money}")
+                    health_label.config(text=f"Health: {health} HP")
+                    messagebox.showinfo(title="Loaded!", message="Loaded data from file [saves.txt].", type="ok")
+                except FileNotFoundError:
+                    print("Save file not found. Starting with default values.")
+                    messagebox.showinfo(title="Load failed", message="Save file not found. Continuing as default.", type="ok")
+                except Exception as e:
+                    print("No save data found. Continuing as regular and resetting data...")
+                    messagebox.showinfo(title="Load failed", message=f"An exception occured: {e}.  Continuing with default values.", type="ok")
+        except Exception as e:
+            messagebox.showinfo(title="Load failed", message=f"An exception occured: {e}.  Continuing with default values.", type="ok")   
             
-    def update_grid():
+    def update_grid(frame):
         for col in range(6):
-            frm.columnconfigure(col, weight=1)
+            frame.columnconfigure(col, weight=1)
         for row in range(10):
-            frm.rowconfigure(row, weight=1)
+            frame.rowconfigure(row, weight=1)
             
     def clear_screen():
         for widget in root.winfo_children():
@@ -144,15 +200,20 @@ frm.master.title(f"Tk_RPG: {random.choice(title_messages)}")
 
 # ===============================================================================
 status = 'begin'
-begin_label = ttk.Label(frm, text="Hello, World!")
+begin_label = ttk.Label(frm, text="initializing...")
 begin_label.grid(column=0, row=4, columnspan=10)
-update_grid()
+
+update_grid(frm)
 root.update()
-root.after(3000)
+
+root.after(800) # add a delay
+
+# init
 clear_screen()
 root.update()
 init_frame()
 
+# ===============================================================================
 status = 'run'
 if status == 'run':
     pass
@@ -164,37 +225,36 @@ else:
 #title_label.grid(column=1, row=0, columnspan=3, pady=3)
 
 money_label = ttk.Label(frm, text=f"Money: ${money}")
-money_label.grid(column=0, row=0, pady=3, sticky=(W))
+money_label.grid(column=0, row=0, sticky=(W, N))
 Tooltip(money_label, "Amount of moolah you currently have. Spend it wisely.")
 
 health_label = ttk.Label(frm, text=f"Health: {health} HP")
-health_label.grid(column=6, row=0, pady=3, sticky=(E))#, padx=(0,10))
+health_label.grid(column=6, row=0, sticky=(E, N))#, padx=(0,10))
 Tooltip(health_label, "Amount of HP you currently have. Reaching 0 means death.")
 
 # add_button = ttk.Button(frm, text="Add Money ($10)", command=cashplus)
 # add_button.grid(column=1, row=2, pady=5)
 
 inventory_button = ttk.Button(frm, text="Show Inventory", command=show_inventory)
-inventory_button.grid(column=0, row=3, pady=10, sticky=(W))
+inventory_button.grid(column=6, row=9, sticky=(E, S))
 
 # ===============================================================================
 # save/load/quit buutooons
-
-save_button = ttk.Button(frm, text="Save Game", command=save_game)
-save_button.grid(column=0, row=8, pady=5, sticky=(W))
-
-load_button = ttk.Button(frm, text="Load Game", command=load_game)
-load_button.grid(column=6, row=8, pady=5, sticky=(E))
-
-quit_button = ttk.Button(frm, text="⚙️ Quit", command=root.destroy)
-quit_button.grid(column=0, row=8, pady=5, columnspan=10)
+settings_button = ttk.Button(frm, text="⚙️", command=show_settings, width=2)
+settings_button.grid(column=0, row=9, sticky=(W, S))
 
 # ===============================================================================
 
 # frame grid make biggaer also!
-update_grid()
+update_grid(frm)
 
 # Load game data if available
-load_game()
+loadchoice = messagebox.showinfo(icon="question", title="Load game?", message="Would you like to load your save data? (Cancel to quit)", type='yesnocancel')
+if loadchoice == "yes":
+    load_game()
+elif loadchoice == "no":
+    messagebox.showinfo(title="Info", message="Did not load game.", type="ok")
+elif loadchoice == "cancel":
+    exit_game()
 
 root.mainloop()
