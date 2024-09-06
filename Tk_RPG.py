@@ -1,6 +1,14 @@
+# tkinter imports
 from tkinter import *
 from tkinter import messagebox
 from tkinter import ttk
+
+# secrets!
+import pickle
+import hmac
+import secrets
+
+# misc misc
 import random
 import os
 
@@ -28,6 +36,9 @@ status = None
 # ===============================================================================
 # funkshins and calsses (put into an if true to collapse in vscode)
 if True:
+    
+    # ---------------------------------------------------------------
+    # CASH OPS
     def cashplus():
         global money
         money += 10
@@ -38,6 +49,8 @@ if True:
         money_label.config(text=f"Money: ${money}")
         root.update()
 
+    # ---------------------------------------------------------------
+    # INVENTORY
     def show_inventory():
         global inventory_window
 
@@ -60,7 +73,17 @@ if True:
             item_label.grid(row=index + 1, column=0, sticky="w")
             scrap_button = Button(inventory_window, text="Scrap", command=lambda i=index: scrap_item(i))
             scrap_button.grid(row=index + 1, column=1)
-       
+    
+    # INVENTORY SCRAP
+    def scrap_item(index):
+        global money
+        item = inventory.pop(index)
+        money += 50
+        money_label.config(text=f"Money: ${money}")
+        show_inventory()  # Refresh inventory window
+    
+    # ---------------------------------------------------------------
+    # EXIT
     def exit_game():
         cancel = messagebox.showinfo(title="Quitting...", message="Quitting game...", type="okcancel")
         if cancel == "ok":
@@ -68,7 +91,9 @@ if True:
             exit()
         else:
             pass   
-            
+    
+    # ---------------------------------------------------------------
+    # SETTINGS
     def show_settings():
         global settings_window
 
@@ -82,10 +107,10 @@ if True:
         lbl = Label(settings_window, text="⚙️ Settings:")
         lbl.grid(row=0, column=0, columnspan=6, pady=10)
         
-        save_button = ttk.Button(settings_window, text="Save Game", command=save_game)
+        save_button = ttk.Button(settings_window, text="Save Game", command=save)
         save_button.grid(column=0, row=1, pady=5, columnspan=6)
 
-        load_button = ttk.Button(settings_window, text="Load Game", command=load_game)
+        load_button = ttk.Button(settings_window, text="Load Game", command=load)
         load_button.grid(column=0, row=2, pady=5, columnspan=6)
 
         quit_button = ttk.Button(settings_window, text="Quit", command=exit_game)
@@ -93,55 +118,77 @@ if True:
         
         update_grid(settings_window)
 
-    def scrap_item(index):
-        global money
-        item = inventory.pop(index)
-        money += 50
-        money_label.config(text=f"Money: ${money}")
-        show_inventory()  # Refresh inventory window
+    # ---------------------------------------------------------------
+    # SAVES
+    def save_game(data, filename, key):
+        # Serialize the data
+        serialized_data = pickle.dumps(data)
 
-    def save_game():
-        try:
-            with open("saves.txt", "w") as file:
-                file.write(f"{money}\n")
-                file.write(f"{health}\n")
-                for item in inventory:
-                    file.write(f"{item}\n")
-        except FileNotFoundError:
-            print("Creating new save file...")
-            with open("saves.txt", "x"):
-                file.write(f"{money}\n")
-                file.write(f"{health}\n")
-                for item in inventory:
-                    file.write(f"{item}\n")
+        # Create an HMAC for the data
+        hmac_obj = hmac.new(key, serialized_data, digestmod='sha256')
+        digest = hmac_obj.digest()
+
+        # Store the serialized data and the HMAC together
+        with open(filename, 'wb') as file:
+            file.write(digest)  # Write the HMAC first
+            file.write(serialized_data)  # Then the actual data
         messagebox.showinfo(title="Saved!", message="Saved game.", type='ok')
-                
+      
+    def save():
+        save_data = {
+            'money': 500,
+            'health': 100,
+            'inventory': ["sword", "apple", "heal juice", "glock 19"]
+        }
+        global key
+        key = secrets.token_bytes(32)  # Generate a strong random key
+        save_game(save_data, 'saves.p', key)          
 
-    def load_game():
-        global money, inventory, health
+    # ---------------------------------------------------------------
+    # LOADS
+    
+    def load_game(filename, key):
+        with open(filename, 'rb') as file:
+            # Read the HMAC and serialized data
+            stored_hmac = file.read(32)  # Assuming the HMAC is 32 bytes long (sha256)
+            serialized_data = file.read()
+
+            # Verify the HMAC
+            hmac_obj = hmac.new(key, serialized_data, digestmod='sha256')
+            if not hmac.compare_digest(stored_hmac, hmac_obj.digest()):
+                raise ValueError("Data has been tampered with or the key is incorrect!")
+            else:
+                messagebox.showinfo(title="Success!", message="Loaded sucessfully.", type='ok')
+
+            # Deserialize the data
+            return pickle.loads(serialized_data)
+    
+    def load():
         try:
-            isEmpty = os.stat("saves.txt").st_size == 0
-            if isEmpty:
-                messagebox.showinfo(title="Load failed", message=f"An exception occured: [saves.txt] is empty.  Continuing with default values.", type="ok")
-            else:     
-                try:
-                    with open("saves.txt", "r") as file:
-                        lines = file.readlines()
-                        money = int(lines[0].strip())
-                        health = int(lines[1].strip())
-                        inventory = [line.strip() for line in lines[2:]]
-                    money_label.config(text=f"Money: ${money}")
-                    health_label.config(text=f"Health: {health} HP")
-                    messagebox.showinfo(title="Loaded!", message="Loaded data from file [saves.txt].", type="ok")
-                except FileNotFoundError:
-                    print("Save file not found. Starting with default values.")
-                    messagebox.showinfo(title="Load failed", message="Save file not found. Continuing as default.", type="ok")
-                except Exception as e:
-                    print("No save data found. Continuing as regular and resetting data...")
-                    messagebox.showinfo(title="Load failed", message=f"An exception occured: {e}.  Continuing with default values.", type="ok")
-        except Exception as e:
-            messagebox.showinfo(title="Load failed", message=f"An exception occured: {e}.  Continuing with default values.", type="ok")   
-            
+            loaded_data = load_game('saves.p', key)
+            print(loaded_data)
+        except ValueError as e:
+            messagebox.showinfo(title="Error!", message=f"An error occured: {e}", type='ok')
+    
+    # ---------------------------------------------------------------
+    # FILE CHECKS
+    def check_file(filename):
+        result = None
+        # Check if the file exists
+        if not os.path.exists(filename):
+            result = "NF"
+            return result
+        
+        # Check if the file is empty
+        if os.stat(filename).st_size == 0:
+            result = "E"
+            return result
+        
+        result = "NE"
+        return result
+    
+    # ---------------------------------------------------------------
+    # SCREEN UPDATES    
     def update_grid(frame):
         for col in range(6):
             frame.columnconfigure(col, weight=1)
@@ -152,6 +199,8 @@ if True:
         for widget in root.winfo_children():
             widget.destroy()
 
+    # ---------------------------------------------------------------
+    # TOOLTIPS
     class Tooltip:
         def __init__(self, widget, text):
             self.widget = widget
@@ -176,7 +225,9 @@ if True:
             if self.tip_window:
                 self.tip_window.destroy()
                 self.tip_window = None
-                
+    
+    # ---------------------------------------------------------------
+    # INIT         
     def init_frame():
         global frm
         frm = ttk.Frame(root, padding=10)
@@ -248,13 +299,18 @@ settings_button.grid(column=0, row=9, sticky=(W, S))
 # frame grid make biggaer also!
 update_grid(frm)
 
-# Load game data if available
-loadchoice = messagebox.showinfo(icon="question", title="Load game?", message="Would you like to load your save data? (Cancel to quit)", type='yesnocancel')
-if loadchoice == "yes":
-    load_game()
-elif loadchoice == "no":
-    messagebox.showinfo(title="Info", message="Did not load game.", type="ok")
-elif loadchoice == "cancel":
-    exit_game()
+check = check_file('saves.p')
+print(check)
+if check == "NE":
+    # Load game data if available
+    loadchoice = messagebox.showinfo(icon="question", title="Load game?", message="Would you like to load your save data? (Cancel to quit)", type='yesnocancel')
+    if loadchoice == "yes":
+        load()
+    elif loadchoice == "no":
+        messagebox.showinfo(title="Info", message="Did not load game.", type="ok")
+    elif loadchoice == "cancel":
+        exit_game()
+elif check != "NE":
+    messagebox.showinfo(title="Save")
 
 root.mainloop()

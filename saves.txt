@@ -1,6 +1,0 @@
-500
-100
-sword
-apple
-heal juice
-glock 19
